@@ -1,4 +1,5 @@
 import time
+import json
 import requests
 import logging
 
@@ -42,22 +43,28 @@ def fetch_users():
         users_cache = []
 
 news_cache = None
+ticker_cache = None
 def load_news():
-    global news_cache
+    global news_cache, ticker_cache
     try:
         response = requests.get(f"{API_URL}/news/?days_ago=1", timeout=10)
         response.raise_for_status()
         data = response.json().get("data", [])
 
         message = (f"*📰 UPDATE BERITA ({current_date()}) 📰*\n\n")
-
+        tickers = []
         for news in data:
             message += (
                 f"*{news['judul'].upper()}*\n\n"
                 f"{news['summary']}\n"
                 f"[📚 Baca Selengkapnya]({news['url']})\n\n"
             )
+            ticker = json.loads(news['ticker'])
+            tickers.extend(ticker)
+
         news_cache = message
+        ticker_cache = list(set(tickers))
+
         logging.info("News loaded and cached successfully.")
 
     except Exception as e:
@@ -71,6 +78,23 @@ def main_menu_button():
         InlineKeyboardButton("📰 Berita Hari Ini", callback_data="berita"),
         InlineKeyboardButton("📊 Insight Saham", callback_data="saham")
     )
+    return markup
+
+def ticker_button():
+    markup = InlineKeyboardMarkup()
+    
+    row = []
+    row_count = 3
+
+    for i, ticker in enumerate(ticker_cache, start=1):
+        row.append(InlineKeyboardButton(ticker, callback_data=f"stock_{ticker.upper()}"))
+        if i % row_count == 0:
+            markup.row(*row)
+            row = []
+    if row:  # add remaining buttons if any
+        markup.row(*row)
+    
+    markup.row(InlineKeyboardButton("🏠 Kembali ke Menu", callback_data="menu"))
     return markup
 
 # HANDLER COMMAND
@@ -194,7 +218,7 @@ def callback_handler(call):
 
         # tombol kembali ke menu utama
         markup = InlineKeyboardMarkup()
-        markup.row(InlineKeyboardButton("🔙 Kembali ke Menu", callback_data="menu"))
+        markup.row(InlineKeyboardButton("🏠 Kembali ke Menu", callback_data="menu"))
         
         bot.edit_message_text(
             chat_id=call.message.chat.id,
@@ -209,16 +233,30 @@ def callback_handler(call):
 
         # tombol kembali ke menu utama
         markup = InlineKeyboardMarkup()
-        markup.row(InlineKeyboardButton("🔙 Kembali ke Menu", callback_data="menu"))
+        markup.row(InlineKeyboardButton("🏠 Kembali ke Menu", callback_data="menu"))
+
+        message = f"*📊 INSIGHT SAHAM ({current_date()})*\n\nSilakan pilih kode saham di bawah ini:"
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text=message,
+            reply_markup=ticker_button(),
+            parse_mode="Markdown"
+        )
+    
+    elif call.data.startswith("stock_"):
+
+        markup = InlineKeyboardMarkup()
+        markup.row(InlineKeyboardButton("🔙 Kembali ke Daftar Saham", callback_data="saham"))
+        markup.row(InlineKeyboardButton("🏠 Kembali ke Menu Utama", callback_data="menu"))
 
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             text="Fitur insight saham sedang dalam pengembangan. Nantikan update selanjutnya!",
-            reply_markup=markup,
-            parse_mode="Markdown"
+            reply_markup=markup
         )
-        
+
     elif call.data == "menu":
         bot.edit_message_text(
             chat_id=call.message.chat.id,
