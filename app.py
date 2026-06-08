@@ -8,7 +8,7 @@ import threading
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from config import API_URL, BOT_TOKEN
+from config import API_URL, BOT_TOKEN, DAILY_TIME
 
 # logging
 logging.basicConfig(
@@ -231,7 +231,6 @@ def callback_handler(call):
     bot.answer_callback_query(call.id) # menghilangkan loading indicator
 
 # SCHEDULE TASK
-# send daily news update at 8 AM
 def send_notification_daily():
     load_news()
     fetch_users()
@@ -266,7 +265,7 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(1)
 
-schedule.every().day.at("08:00").do(send_notification_daily)
+schedule.every().day.at(DAILY_TIME).do(send_notification_daily)
 
 # MAIN
 def main():
