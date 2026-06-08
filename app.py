@@ -45,7 +45,7 @@ news_cache = None
 def load_news():
     global news_cache
     try:
-        response = requests.get(f"{API_URL}/news/", timeout=10)
+        response = requests.get(f"{API_URL}/news/?days_ago=1", timeout=10)
         response.raise_for_status()
         data = response.json().get("data", [])
 
