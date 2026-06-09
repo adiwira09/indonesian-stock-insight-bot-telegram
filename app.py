@@ -59,7 +59,7 @@ def load_news():
                 f"{news['summary']}\n"
                 f"[📚 Baca Selengkapnya]({news['url']})\n\n"
             )
-            ticker = json.loads(news['ticker'])
+            ticker = news['ticker']
             tickers.extend(ticker)
 
         news_cache = message
