@@ -34,6 +34,7 @@ Kami memiliki insight saham terbaru dan berita terkini seputar pasar untuk Anda!
 Silakan klik tombol di bawah untuk melihat informasi lebih lengkap."""
     return text
 
+holiday_count = 0
 def is_holiday(check_date=None):
     check_date = check_date or current_date()
 
@@ -61,10 +62,10 @@ def fetch_users():
 
 news_cache = None
 ticker_cache = None
-def load_news():
+def load_news(days_ago=1):
     global news_cache, ticker_cache
     try:
-        response = requests.get(f"{API_URL}/news/?days_ago=1", timeout=10)
+        response = requests.get(f"{API_URL}/news/?days_ago={days_ago}", timeout=10)
         response.raise_for_status()
         data = response.json().get("data", [])
 
@@ -287,12 +288,15 @@ def callback_handler(call):
 
 # SCHEDULE TASK
 def send_notification_daily():
+    global holiday_count
+
     holiday, reason = is_holiday()
     if holiday:
+        holiday_count += 1
         logging.info(f"Today is a holiday ({reason}). Skipping daily notification.")
         return
         
-    load_news()
+    load_news(days_ago=holiday_count + 1)
     fetch_users()
 
     if not users_cache:
