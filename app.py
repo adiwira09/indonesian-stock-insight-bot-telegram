@@ -19,6 +19,10 @@ logging.basicConfig(
 
 bot = telebot.TeleBot(BOT_TOKEN) # bot configuration
 
+# load holiday json
+with open("market_holiday_2026.json", encoding="utf-8") as f:
+    holidays = json.load(f)
+
 # helper functions
 def current_date():
     return time.strftime("%d/%m/%Y")
@@ -30,6 +34,19 @@ Kami memiliki insight saham terbaru dan berita terkini seputar pasar untuk Anda!
 Silakan klik tombol di bawah untuk melihat informasi lebih lengkap."""
     return text
 
+def is_holiday(check_date=None):
+    check_date = check_date or current_date()
+
+    if check_date.weekday() == 5:
+        return True, "Sabtu"
+    if check_date.weekday() == 6:
+        return True, "Minggu"
+
+    reason = holidays.get(check_date.isoformat())    
+    if reason:
+        return True, reason
+    return False, None
+    
 users_cache = None
 def fetch_users():
     global users_cache
@@ -270,6 +287,11 @@ def callback_handler(call):
 
 # SCHEDULE TASK
 def send_notification_daily():
+    holiday, reason = is_holiday()
+    if holiday:
+        logging.info(f"Today is a holiday ({reason}). Skipping daily notification.")
+        return
+        
     load_news()
     fetch_users()
 
