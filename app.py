@@ -2,6 +2,7 @@ import time
 import json
 import requests
 import logging
+from datetime import date
 
 import schedule
 import threading
@@ -25,14 +26,23 @@ with open("market_holiday_2026.json", encoding="utf-8") as f:
 
 # helper functions
 def current_date():
-    return time.strftime("%d/%m/%Y")
+    return date.today()
 
 def notification_message():
-    text = f"""*🔔 UPDATE ({current_date()})🔔*
+    holiday, reason = is_holiday()
+    print(f"Holiday check for {current_date()}: {holiday} ({reason})")
+
+    if holiday:
+        return  f"""⚠️ *Hari Libur Pasar ({reason})* ⚠️
+
+Berita dan Insight Saham tidak tersedia saat pasar libur. Silakan cek kembali pada hari bursa berikutnya."""
+
+    return  f"""*🔔 UPDATE ({current_date().strftime('%d/%m/%Y')}) 🔔*
+
 Kami memiliki insight saham terbaru dan berita terkini seputar pasar untuk Anda!
 
-Silakan klik tombol di bawah untuk melihat informasi lebih lengkap."""
-    return text
+Silakan klik tombol di bawah untuk melihat informasi lebih lengkap.
+"""
 
 holiday_count = 0
 def is_holiday(check_date=None):
@@ -69,7 +79,7 @@ def load_news(days_ago=1):
         response.raise_for_status()
         data = response.json().get("data", [])
 
-        message = (f"*📰 UPDATE BERITA ({current_date()}) 📰*\n\n")
+        message = (f"*📰 UPDATE BERITA ({current_date().strftime('%d/%m/%Y')}) 📰*\n\n")
         tickers = []
         for news in data:
             message += (
@@ -233,6 +243,19 @@ def main_menu(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     if call.data == "berita":
+        if holiday_count > 0:
+            markup = InlineKeyboardMarkup()
+            markup.row(InlineKeyboardButton("🏠 Kembali ke Menu Utama", callback_data="menu"))
+
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text="Berita tidak tersedia karena hari ini adalah hari libur pasar. Silakan cek kembali pada hari berikutnya.",
+                reply_markup=markup,
+                parse_mode="Markdown"
+            )
+            bot.answer_callback_query(call.id)
+            return
 
         # tombol kembali ke menu utama
         markup = InlineKeyboardMarkup()
@@ -248,12 +271,25 @@ def callback_handler(call):
         )
 
     elif call.data == "saham":
+        if holiday_count > 0:
+            markup = InlineKeyboardMarkup()
+            markup.row(InlineKeyboardButton("🏠 Kembali ke Menu Utama", callback_data="menu"))
+
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text="Insight saham tidak tersedia karena hari ini adalah hari libur pasar. Silakan cek kembali pada hari berikutnya.",
+                reply_markup=markup,
+                parse_mode="Markdown"
+            )
+            bot.answer_callback_query(call.id)
+            return
 
         # tombol kembali ke menu utama
         markup = InlineKeyboardMarkup()
         markup.row(InlineKeyboardButton("🏠 Kembali ke Menu", callback_data="menu"))
 
-        message = f"*📊 INSIGHT SAHAM ({current_date()})*\n\nSilakan pilih kode saham di bawah ini:"
+        message = f"*📊 INSIGHT SAHAM ({current_date().strftime('%d/%m/%Y')})*\n\nSilakan pilih kode saham di bawah ini:"
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
@@ -290,7 +326,7 @@ def callback_handler(call):
 def send_notification_daily():
     global holiday_count
 
-    holiday, reason = is_holiday()
+    holiday, reason = is_holiday(current_date())
     if holiday:
         holiday_count += 1
         logging.info(f"Today is a holiday ({reason}). Skipping daily notification.")
@@ -322,7 +358,7 @@ def send_notification_daily():
     
     logging.info("Daily notification task completed")
     logging.info(f"Next scheduled run: {schedule.next_run()}")
-
+    holiday_count = 0 # reset holiday count after sending notification
 
 def run_scheduler():
     while True:
@@ -333,9 +369,18 @@ schedule.every().day.at(DAILY_TIME).do(send_notification_daily)
 
 # MAIN
 def main():
-    # initial data load
-    fetch_users()
-    load_news()
+    # initial holiday check
+    global holiday_count
+    
+    holiday, reason = is_holiday()
+    if holiday:
+        holiday_count += 1
+        logging.info(f"Today is a holiday ({reason}). Bot will start but skip fetching data.")
+    else:
+        # initial data load
+        fetch_users()
+        load_news()
+        logging.info("Today is not a holiday. Bot will start normally.")
 
     # start scheduler thread
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
