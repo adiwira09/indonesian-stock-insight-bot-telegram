@@ -30,8 +30,7 @@ def current_date():
 
 def notification_message():
     holiday, reason = is_holiday()
-    print(f"Holiday check for {current_date()}: {holiday} ({reason})")
-
+    
     if holiday:
         return  f"""⚠️ *Hari Libur Pasar ({reason})* ⚠️
 
