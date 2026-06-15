@@ -74,7 +74,7 @@ ticker_cache = None
 def load_news(days_ago=1):
     global news_cache, ticker_cache
     try:
-        response = requests.get(f"{API_URL}/news/?days_ago={days_ago}", timeout=10)
+        response = requests.get(f"{API_URL}/news/?days_ago={days_ago}&limit=5", timeout=10)
         response.raise_for_status()
         data = response.json().get("data", [])
 
