@@ -98,6 +98,34 @@ def load_news(days_ago=1):
         logging.error(f"Error loading news: {e}")
         return []
 
+analysis_cache = None
+def load_analysis(days_ago=1):
+    global analysis_cache
+
+    try:
+        if not ticker_cache:
+            logging.info("No ticker found")
+            return
+        
+        params = [("tickers", ticker) for ticker in ticker_cache]
+        params.append(("days_ago", days_ago))
+
+        response = requests.get(f"{API_URL}/analysis/", params=params, timeout=10)
+        response.raise_for_status()
+
+        data = response.json().get("data", [])
+
+        analysis_cache = {item["ticker"]: item for item in data}
+        logging.info("Analysis loaded and cached successfully.")
+        
+    except Exception as e:
+        logging.error(f"Error loading analysis: {e}")
+        return []
+
+    except Exception as e:
+        logging.error(f"Error loading analysis: {e}")
+        return []
+    
 # tombol menu utama
 def main_menu_button():
     markup = InlineKeyboardMarkup()
@@ -299,15 +327,36 @@ def callback_handler(call):
     
     elif call.data.startswith("stock_"):
 
+        ticker = call.data.replace("stock_", "")
+        analysis = analysis_cache.get(ticker)
+
         markup = InlineKeyboardMarkup()
         markup.row(InlineKeyboardButton("🔙 Kembali ke Daftar Saham", callback_data="saham"))
         markup.row(InlineKeyboardButton("🏠 Kembali ke Menu Utama", callback_data="menu"))
 
+        if analysis:
+            message = (
+                f"*📊 INSIGHT SAHAM ({current_date().strftime('%d/%m/%Y')})*\n\n"
+                f"*Nama Perusahaan:* {analysis['company_name']} ({analysis['ticker']})\n"
+                f"*Sektor:* {analysis['sector']}\n"
+                f"*Tanggal Analisis:* {analysis['analysis_date']}\n\n"
+                f"*Analisis Fundamental*\n"
+                f"*Skor:* {analysis['fundamental_score']} ({analysis['fundamental_confidence']})\n"
+                f"{analysis['fundamental_analysis']}\n\n"
+                f"*Analisis Teknikal*\n"
+                f"*Skor:* {analysis['bullish_score']} ({analysis['technical_confidence']})\n"
+                f"{analysis['technical_analysis']}\n\n"
+                f"*Insight:*\n{analysis['insight_conclusion']}"
+            )
+        else:
+            message = f"Insight saham untuk {ticker} tidak tersedia saat ini. Silakan cek kembali nanti."
+        
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text="Fitur insight saham sedang dalam pengembangan. Nantikan update selanjutnya!",
-            reply_markup=markup
+            text=message,
+            reply_markup=markup,
+            parse_mode="Markdown"
         )
 
     elif call.data == "menu":
@@ -331,8 +380,9 @@ def send_notification_daily():
         logging.info(f"Today is a holiday ({reason}). Skipping daily notification.")
         return
         
-    load_news(days_ago=holiday_count + 1)
     fetch_users()
+    load_news(days_ago=holiday_count + 1)
+    load_analysis(days_ago=holiday_count + 1)
 
     if not users_cache:
         logging.info("No active users found")
@@ -340,6 +390,10 @@ def send_notification_daily():
 
     if not news_cache:
         logging.info("No news found")
+        return
+
+    if not analysis_cache:
+        logging.info("No analysis found")
         return
 
     logging.info("Sending daily news update...")
@@ -379,6 +433,7 @@ def main():
         # initial data load
         fetch_users()
         load_news()
+        load_analysis()
         logging.info("Today is not a holiday. Bot will start normally.")
 
     # start scheduler thread
